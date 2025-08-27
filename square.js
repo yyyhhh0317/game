@@ -82,6 +82,7 @@ class Game {
         this.nextPiece = new Tetromino();
         this.gameOver = false;
         this.score = 0;
+        this.highScore = this.getHighScore(); // 获取最高分
         this.level = 1;
         this.linesCleared = 0;
         this.fallSpeed = 0.5;  // 方块下落的速度（秒）
@@ -95,10 +96,36 @@ class Game {
         this.gameLoop();
     }
 
+    // 获取存储的最高分
+    getHighScore() {
+        const savedHighScore = localStorage.getItem('tetrisHighScore');
+        return savedHighScore ? parseInt(savedHighScore) : 0;
+    }
+
+    // 保存最高分
+    saveHighScore() {
+        if (this.score > this.highScore) {
+            this.highScore = this.score;
+            localStorage.setItem('tetrisHighScore', this.highScore.toString());
+        }
+    }
+
     setupEventListeners() {
         document.addEventListener('keydown', (e) => {
-            if (this.gameOver) return;
+            // 处理游戏重置和暂停，即使在游戏结束时也应该可以执行
+            switch (e.key) {
+                case 'r':
+                case 'R':
+                    this.reset();
+                    return; // 处理完后直接返回
+                case 'p':
+                case 'P':
+                    this.paused = !this.paused;
+                    return; // 处理完后直接返回
+            }
 
+            // 如果游戏结束或暂停，则不处理其他按键
+            if (this.gameOver) return;
             if (!this.paused) {
                 switch (e.key) {
                     case 'ArrowLeft':
@@ -114,17 +141,6 @@ class Game {
                         this.rotatePiece();
                         break;
                 }
-            }
-
-            switch (e.key) {
-                case 'r':
-                case 'R':
-                    this.reset();
-                    break;
-                case 'p':
-                case 'P':
-                    this.paused = !this.paused;
-                    break;
             }
         });
     }
@@ -173,11 +189,14 @@ class Game {
         // 绘制分数
         this.ctx.fillText(`score: ${this.score}`, sidebarX, 230);
 
+        // 绘制最高分
+        this.ctx.fillText(`high score: ${this.highScore}`, sidebarX, 290);
+
         // 绘制等级
-        this.ctx.fillText(`level: ${this.level}`, sidebarX, 290);
+        this.ctx.fillText(`level: ${this.level}`, sidebarX, 350);
 
         // 绘制已消除行数
-        this.ctx.fillText(`lines: ${this.linesCleared}`, sidebarX, 350);
+        this.ctx.fillText(`lines: ${this.linesCleared}`, sidebarX, 410);
     }
 
     checkCollision(shape, x, y) {
@@ -233,9 +252,16 @@ class Game {
             this.linesCleared += linesToClear.length;
             const points = [100, 300, 500, 800];
             this.score += points[Math.min(linesToClear.length - 1, 3)] * this.level;
-            this.level = Math.floor(this.linesCleared / 10) + 1;
-            // 修改下落速度计算方式，使其逐渐变快
-            this.fallSpeed = Math.max(0.05, this.baseFallSpeed * Math.pow(0.85, this.level - 1));
+
+            // 更新最高分
+            if (this.score > this.highScore) {
+                this.highScore = this.score;
+            }
+
+            // 修改等级提升速度，每5行提升1级（原来是每10行）
+            this.level = Math.floor(this.linesCleared / 5) + 1;
+            // 修改下落速度计算方式，使其变化更快
+            this.fallSpeed = Math.max(0.05, this.baseFallSpeed * Math.pow(0.7, this.level - 1));
         }
     }
 
@@ -246,6 +272,7 @@ class Game {
         // 检查游戏是否结束
         if (this.checkCollision(this.currentPiece.shape, this.currentPiece.x, this.currentPiece.y)) {
             this.gameOver = true;
+            this.saveHighScore(); // 游戏结束时保存最高分
         }
     }
 
@@ -357,6 +384,7 @@ class Game {
         this.clearEffect = [];
         this.clearEffectTime = 0;
         this.paused = false;
+        // 保留最高分记录
     }
 
     gameLoop() {
