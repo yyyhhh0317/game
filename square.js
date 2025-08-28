@@ -110,6 +110,18 @@ class Game {
         }
     }
 
+    // 在游戏结束时保存最高分
+    newPiece() {
+        this.currentPiece = this.nextPiece;
+        this.nextPiece = new Tetromino();
+
+        // 检查游戏是否结束
+        if (this.checkCollision(this.currentPiece.shape, this.currentPiece.x, this.currentPiece.y)) {
+            this.gameOver = true;
+            this.saveHighScore(); // 游戏结束时保存最高分
+        }
+    }
+
     setupEventListeners() {
         document.addEventListener('keydown', (e) => {
             // 处理游戏重置和暂停，即使在游戏结束时也应该可以执行
