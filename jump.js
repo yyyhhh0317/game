@@ -1,0 +1,270 @@
+// 游戏常量
+const WIDTH = 800;
+const HEIGHT = 400;
+const GROUND_HEIGHT = HEIGHT - 50;
+const GRAVITY = 0.5; // 降低重力影响
+const FPS = 60;
+
+// 颜色定义
+const WHITE = "#FFFFFF";
+const BLACK = "#000000";
+const RED = "#FF0000";
+const BLUE = "#0000FF";
+
+// 获取canvas和上下文
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+// 获取UI元素
+const scoreElement = document.getElementById('score');
+const highScoreElement = document.getElementById('highScore');
+const gameOverElement = document.getElementById('gameOver');
+const newRecordElement = document.getElementById('newRecord');
+
+// 游戏变量
+let player;
+let obstacles = [];
+let obstacleTimer = 0;
+let obstacleInterval = 2000; // 增大初始障碍物间隔(毫秒)
+let minInterval = 1000; // 增大最小间隔
+let obstacleSpeed = 3; // 初始速度
+let maxSpeed = 10; // 最大速度
+let score = 0;
+let highScore = 0;
+let gameRunning = true;
+let lastTime = 0;
+let obstacleCounter = 0;
+
+// 读取最高分
+function loadHighScore() {
+    const savedHighScore = localStorage.getItem('highScore');
+    if (savedHighScore !== null) {
+        highScore = parseInt(savedHighScore);
+    }
+    highScoreElement.textContent = highScore;
+}
+
+// 保存最高分
+function saveHighScore() {
+    localStorage.setItem('highScore', highScore.toString());
+}
+
+// 玩家类
+class Player {
+    constructor() {
+        this.width = 30;
+        this.height = 50;
+        this.x = 50;
+        this.y = GROUND_HEIGHT - this.height;
+        this.jumpVelocity = 0;
+        this.isJumping = false;
+        this.hasDoubleJump = false;
+        this.color = BLUE;
+    }
+
+    jump() {
+        if (!this.isJumping) {
+            // 第一次跳跃
+            this.jumpVelocity = -12; // 降低跳跃初速度
+            this.isJumping = true;
+            this.hasDoubleJump = true;
+        } else if (this.hasDoubleJump) {
+            // 二连跳
+            this.jumpVelocity = -10; // 降低二连跳初速度
+            this.hasDoubleJump = false;
+        }
+    }
+
+    update() {
+        // 应用重力
+        this.y += this.jumpVelocity;
+        this.jumpVelocity += 0.7 * GRAVITY;
+
+        // 检查是否落地
+        if (this.y >= GROUND_HEIGHT - this.height) {
+            this.y = GROUND_HEIGHT - this.height;
+            this.isJumping = false;
+            this.jumpVelocity = 0;
+            this.hasDoubleJump = false;
+        }
+    }
+
+    draw() {
+        ctx.fillStyle = this.color;
+        ctx.fillRect(this.x, this.y, this.width, this.height);
+    }
+}
+
+// 障碍物类
+class Obstacle {
+    constructor(x, speed) {
+        this.width = 30;
+        this.height = Math.floor(Math.random() * 31) + 20; // 20-50之间
+        this.x = x;
+        this.y = GROUND_HEIGHT - this.height;
+        this.speed = speed;
+        this.color = RED;
+        this.passed = false;
+        this.scoreValue = 1;
+    }
+
+    update() {
+        this.x -= this.speed;
+    }
+
+    draw() {
+        ctx.fillStyle = this.color;
+        ctx.fillRect(this.x, this.y, this.width, this.height);
+    }
+
+    isOffScreen() {
+        return this.x < -this.width;
+    }
+
+    checkCollision(player) {
+        return (
+            player.x < this.x + this.width &&
+            player.x + player.width > this.x &&
+            player.y < this.y + this.height &&
+            player.y + player.height > this.y
+        );
+    }
+}
+
+// 初始化游戏
+function initGame() {
+    player = new Player();
+    obstacles = [];
+    obstacleTimer = 0;
+    obstacleInterval = 2000; // 重置为更大的初始间隔
+    minInterval = 1000; // 重置为更大的最小间隔
+    obstacleSpeed = 3;
+    score = 0;
+    gameRunning = true;
+    obstacleCounter = 0;
+    gameOverElement.classList.remove('visible');
+    newRecordElement.classList.add('hidden');
+    scoreElement.textContent = score;
+}
+
+// 生成障碍物
+function spawnObstacle() {
+    obstacleCounter++;
+    // 随着时间增加难度，但调整参数使游戏更平衡
+    obstacleInterval = Math.max(minInterval, obstacleInterval - 15); // 调整间隔减少量
+    obstacleSpeed = Math.min(maxSpeed, obstacleSpeed + 0.05);
+
+    // 创建新障碍物
+    const newObstacle = new Obstacle(WIDTH, obstacleSpeed);
+    newObstacle.scoreValue = 1 + Math.floor(obstacleCounter / 10);
+    obstacles.push(newObstacle);
+}
+
+// 更新游戏状态
+function updateGame() {
+    if (!gameRunning) return;
+
+    // 更新玩家
+    player.update();
+
+    // 生成障碍物
+    obstacleTimer += 1000 / FPS;
+    if (obstacleTimer >= obstacleInterval) {
+        spawnObstacle();
+        obstacleTimer = 0;
+    }
+
+    // 更新障碍物
+    for (let i = obstacles.length - 1; i >= 0; i--) {
+        const obstacle = obstacles[i];
+        obstacle.update();
+
+        // 检查碰撞
+        if (obstacle.checkCollision(player)) {
+            gameOver();
+        }
+
+        // 检查是否越过障碍物并计分
+        if (!obstacle.passed && obstacle.x + obstacle.width < player.x) {
+            obstacle.passed = true;
+            score += obstacle.scoreValue;
+            scoreElement.textContent = score;
+        }
+
+        // 移除屏幕外的障碍物
+        if (obstacle.isOffScreen()) {
+            obstacles.splice(i, 1);
+        }
+    }
+}
+
+// 绘制游戏画面
+function drawGame() {
+    // 绘制背景
+    ctx.fillStyle = WHITE;
+    ctx.fillRect(0, 0, WIDTH, HEIGHT);
+
+    // 绘制地面
+    ctx.fillStyle = BLACK;
+    ctx.fillRect(0, GROUND_HEIGHT, WIDTH, HEIGHT - GROUND_HEIGHT);
+
+    // 绘制玩家和障碍物
+    player.draw();
+    obstacles.forEach(obstacle => obstacle.draw());
+}
+
+// 游戏结束处理
+function gameOver() {
+    gameRunning = false;
+
+    // 更新最高分
+    if (score > highScore) {
+        highScore = score;
+        saveHighScore();
+        highScoreElement.textContent = highScore;
+        newRecordElement.classList.remove('hidden');
+    }
+
+    gameOverElement.classList.add('visible');
+}
+
+// 游戏主循环
+function gameLoop(timestamp) {
+    const deltaTime = timestamp - lastTime;
+    lastTime = timestamp;
+
+    updateGame();
+    drawGame();
+
+    requestAnimationFrame(gameLoop);
+}
+
+// 键盘事件处理
+document.addEventListener('keydown', (event) => {
+    if (event.code === 'Space' || event.code === 'ArrowUp') {
+        if (gameRunning) {
+            player.jump();
+        }
+        event.preventDefault();
+    }
+
+    if (event.code === 'KeyR' && !gameRunning) {
+        initGame();
+        event.preventDefault();
+    }
+});
+
+// 触摸事件处理（移动端支持）
+canvas.addEventListener('touchstart', (event) => {
+    if (gameRunning) {
+        player.jump();
+    } else {
+        initGame();
+    }
+    event.preventDefault();
+});
+
+// 初始化并开始游戏
+loadHighScore();
+initGame();
+requestAnimationFrame(gameLoop);
