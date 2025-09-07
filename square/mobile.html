@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="screen-orientation" content="portrait">
+    <title>俄罗斯方块 - 手机版</title>
+    <link rel="stylesheet" href="mobile.css">
+</head>
+
+<body>
+    <div class="game-container">
+        <h1>俄罗斯方块</h1>
+        <div class="game-area">
+            <canvas id="gameCanvas" width="300" height="600"></canvas>
+            <div class="mobile-controls">
+                <div class="control-group">
+                    <div class="score-display">
+                        <p>分数: <span id="score">0</span></p>
+                        <p>最高分: <span id="highScore">0</span></p>
+                        <p>等级: <span id="level">1</span></p>
+                    </div>
+                    <div class="next-piece">
+                        <p>下一个:</p>
+                        <canvas id="nextPieceCanvas" width="100" height="100"></canvas>
+                    </div>
+                </div>
+                <div class="control-buttons">
+                    <div class="btn pause-btn" id="pauseBtn">暂停</div>
+                    <div class="btn restart-btn" id="restartBtn">重开</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="touch-controls">
+            <div class="touch-btn left-btn">←</div>
+            <div class="touch-btn rotate-btn">↻</div>
+            <div class="touch-btn right-btn">→</div>
+            <div class="touch-btn down-btn">↓</div>
+        </div>
+    </div>
+    <script src="mobile.js"></script>
+</body>
+
+</html>
