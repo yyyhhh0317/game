@@ -3,7 +3,6 @@ const WIDTH = 800;
 const HEIGHT = 400;
 const GROUND_HEIGHT = HEIGHT - 50;
 const GRAVITY = 0.5; // 降低重力影响
-const FPS = 60;
 
 // 颜色定义
 const WHITE = "#FFFFFF";
@@ -27,26 +26,71 @@ let obstacles = [];
 let obstacleTimer = 0;
 let obstacleInterval = 2000; // 增大初始障碍物间隔(毫秒)
 let minInterval = 1000; // 增大最小间隔
-let obstacleSpeed = 3; // 初始速度
-let maxSpeed = 10; // 最大速度
+let obstacleSpeed = 7; // 初始速度
+let maxSpeed = 25; // 最大速度
 let score = 0;
 let highScore = 0;
 let gameRunning = true;
 let lastTime = 0;
 let obstacleCounter = 0;
+let lastTimestamp = 0;
 
 // 读取最高分
 function loadHighScore() {
-    const savedHighScore = localStorage.getItem('highScore');
-    if (savedHighScore !== null) {
-        highScore = parseInt(savedHighScore);
+    // 尝试从多个存储源加载最高分
+    const sources = [
+        () => localStorage.getItem('highScore'),
+        () => sessionStorage.getItem('highScore')
+    ];
+
+    let loadedScore = 0;
+
+    for (const source of sources) {
+        try {
+            const savedScore = source();
+            if (savedScore !== null) {
+                const parsedScore = parseInt(savedScore);
+                if (parsedScore > loadedScore) {
+                    loadedScore = parsedScore;
+                }
+            }
+        } catch (e) {
+            console.log("无法从存储源加载最高分:", e);
+        }
     }
+
+    highScore = loadedScore;
     highScoreElement.textContent = highScore;
 }
 
 // 保存最高分
 function saveHighScore() {
-    localStorage.setItem('highScore', highScore.toString());
+    try {
+        // 保存到多个存储源以提高持久性
+        localStorage.setItem('highScore', highScore.toString());
+        sessionStorage.setItem('highScore', highScore.toString());
+
+        // 尝试使用 IndexedDB 进行更持久的存储
+        if ('indexedDB' in window) {
+            const request = indexedDB.open('JumpGameDB', 1);
+
+            request.onupgradeneeded = function (event) {
+                const db = event.target.result;
+                if (!db.objectStoreNames.contains('scores')) {
+                    db.createObjectStore('scores', { keyPath: 'id' });
+                }
+            };
+
+            request.onsuccess = function (event) {
+                const db = event.target.result;
+                const transaction = db.transaction(['scores'], 'readwrite');
+                const store = transaction.objectStore('scores');
+                store.put({ id: 'highScore', value: highScore });
+            };
+        }
+    } catch (e) {
+        console.log("保存最高分时出错:", e);
+    }
 }
 
 // 玩家类
@@ -108,8 +152,10 @@ class Obstacle {
         this.scoreValue = 1;
     }
 
-    update() {
-        this.x -= this.speed;
+    update(deltaTime) {
+        // 根据实际时间差调整移动速度，确保在不同设备上速度一致
+        const baseFrameTime = 16; // 60FPS的标准帧时间(毫秒)
+        this.x -= this.speed * (deltaTime / baseFrameTime);
     }
 
     draw() {
@@ -136,22 +182,23 @@ function initGame() {
     player = new Player();
     obstacles = [];
     obstacleTimer = 0;
-    obstacleInterval = 2000; // 重置为更大的初始间隔
-    minInterval = 1000; // 重置为更大的最小间隔
-    obstacleSpeed = 3;
+    obstacleInterval = 1500; // 重置为更大的初始间隔
+    minInterval = 500; // 重置为更大的最小间隔
+    obstacleSpeed = 5;
     score = 0;
     gameRunning = true;
     obstacleCounter = 0;
     gameOverElement.classList.remove('visible');
     newRecordElement.classList.add('hidden');
     scoreElement.textContent = score;
+    lastTimestamp = 0;
 }
 
 // 生成障碍物
 function spawnObstacle() {
     obstacleCounter++;
     // 随着时间增加难度，但调整参数使游戏更平衡
-    obstacleInterval = Math.max(minInterval, obstacleInterval - 15); // 调整间隔减少量
+    obstacleInterval = Math.max(minInterval, obstacleInterval - 20); // 调整间隔减少量
     obstacleSpeed = Math.min(maxSpeed, obstacleSpeed + 0.05);
 
     // 创建新障碍物
@@ -161,14 +208,19 @@ function spawnObstacle() {
 }
 
 // 更新游戏状态
-function updateGame() {
+function updateGame(timestamp) {
     if (!gameRunning) return;
+
+    // 计算时间差以确保在不同设备上速度一致
+    if (!lastTimestamp) lastTimestamp = timestamp;
+    const deltaTime = timestamp - lastTimestamp;
+    lastTimestamp = timestamp;
 
     // 更新玩家
     player.update();
 
     // 生成障碍物
-    obstacleTimer += 1000 / FPS;
+    obstacleTimer += deltaTime;
     if (obstacleTimer >= obstacleInterval) {
         spawnObstacle();
         obstacleTimer = 0;
@@ -177,7 +229,7 @@ function updateGame() {
     // 更新障碍物
     for (let i = obstacles.length - 1; i >= 0; i--) {
         const obstacle = obstacles[i];
-        obstacle.update();
+        obstacle.update(deltaTime);
 
         // 检查碰撞
         if (obstacle.checkCollision(player)) {
@@ -230,10 +282,7 @@ function gameOver() {
 
 // 游戏主循环
 function gameLoop(timestamp) {
-    const deltaTime = timestamp - lastTime;
-    lastTime = timestamp;
-
-    updateGame();
+    updateGame(timestamp);
     drawGame();
 
     requestAnimationFrame(gameLoop);
@@ -264,7 +313,32 @@ canvas.addEventListener('touchstart', (event) => {
     event.preventDefault();
 });
 
+// 从IndexedDB加载最高分（如果可用）
+function loadHighScoreFromIndexedDB() {
+    if ('indexedDB' in window) {
+        const request = indexedDB.open('JumpGameDB', 1);
+
+        request.onsuccess = function (event) {
+            const db = event.target.result;
+            const transaction = db.transaction(['scores'], 'readonly');
+            const store = transaction.objectStore('scores');
+            const getRequest = store.get('highScore');
+
+            getRequest.onsuccess = function (event) {
+                if (event.target.result) {
+                    const indexedScore = event.target.result.value;
+                    if (indexedScore > highScore) {
+                        highScore = indexedScore;
+                        highScoreElement.textContent = highScore;
+                    }
+                }
+            };
+        };
+    }
+}
+
 // 初始化并开始游戏
 loadHighScore();
+loadHighScoreFromIndexedDB();
 initGame();
 requestAnimationFrame(gameLoop);
