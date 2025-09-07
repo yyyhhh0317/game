@@ -93,33 +93,153 @@ class Game {
         this.paused = false;
 
         this.setupEventListeners();
+        this.createTouchControls();
         this.gameLoop();
+
+        // 监听屏幕方向变化
+        window.addEventListener('orientationchange', this.handleOrientationChange.bind(this));
+        window.addEventListener('resize', this.handleResize.bind(this));
     }
 
-    // 获取存储的最高分
+    // 处理屏幕方向变化
+    handleOrientationChange() {
+        setTimeout(() => {
+            this.adjustForMobile();
+        }, 100);
+    }
+
+    // 处理窗口大小变化
+    handleResize() {
+        this.adjustForMobile();
+    }
+
+    // 调整移动端显示
+    adjustForMobile() {
+        const isPortrait = window.innerHeight > window.innerWidth;
+        const isMobile = window.innerWidth <= 1000;
+
+        if (isMobile && isPortrait) {
+            // 竖屏移动端 - 启用旋转
+            document.body.style.transform = 'rotate(-90deg)';
+            document.body.style.transformOrigin = 'left top';
+            document.body.style.width = window.innerHeight + 'px';
+            document.body.style.height = window.innerWidth + 'px';
+            document.body.style.position = 'absolute';
+            document.body.style.top = '100%';
+            document.body.style.left = '0';
+        } else {
+            // 横屏或其他情况 - 恢复正常
+            document.body.style.transform = '';
+            document.body.style.transformOrigin = '';
+            document.body.style.width = '';
+            document.body.style.height = '';
+            document.body.style.position = '';
+            document.body.style.top = '';
+            document.body.style.left = '';
+        }
+    }
+
+    // 获取存储的最高分 - 使用多种存储机制
     getHighScore() {
-        const savedHighScore = localStorage.getItem('tetrisHighScore');
-        return savedHighScore ? parseInt(savedHighScore) : 0;
+        // 尝试从多个存储源加载最高分
+        const sources = [
+            () => localStorage.getItem('tetrisHighScore'),
+            () => sessionStorage.getItem('tetrisHighScore')
+        ];
+
+        let loadedScore = 0;
+
+        for (const source of sources) {
+            try {
+                const savedScore = source();
+                if (savedScore !== null) {
+                    const parsedScore = parseInt(savedScore);
+                    if (parsedScore > loadedScore) {
+                        loadedScore = parsedScore;
+                    }
+                }
+            } catch (e) {
+                console.log("无法从存储源加载最高分:", e);
+            }
+        }
+
+        // 尝试从IndexedDB加载
+        this.loadHighScoreFromIndexedDB().then(indexedScore => {
+            if (indexedScore > loadedScore) {
+                this.highScore = indexedScore;
+            }
+        });
+
+        return loadedScore;
     }
 
-    // 保存最高分
+    // 保存最高分到多个存储源
     saveHighScore() {
-        if (this.score > this.highScore) {
-            this.highScore = this.score;
+        try {
+            // 保存到多个存储源以提高持久性
             localStorage.setItem('tetrisHighScore', this.highScore.toString());
+            sessionStorage.setItem('tetrisHighScore', this.highScore.toString());
+
+            // 保存到IndexedDB
+            this.saveHighScoreToIndexedDB();
+        } catch (e) {
+            console.log("保存最高分时出错:", e);
         }
     }
 
-    // 在游戏结束时保存最高分
-    newPiece() {
-        this.currentPiece = this.nextPiece;
-        this.nextPiece = new Tetromino();
+    // 保存最高分到IndexedDB
+    saveHighScoreToIndexedDB() {
+        if ('indexedDB' in window) {
+            const request = indexedDB.open('TetrisDB', 1);
 
-        // 检查游戏是否结束
-        if (this.checkCollision(this.currentPiece.shape, this.currentPiece.x, this.currentPiece.y)) {
-            this.gameOver = true;
-            this.saveHighScore(); // 游戏结束时保存最高分
+            request.onupgradeneeded = function (event) {
+                const db = event.target.result;
+                if (!db.objectStoreNames.contains('scores')) {
+                    db.createObjectStore('scores', { keyPath: 'id' });
+                }
+            };
+
+            request.onsuccess = function (event) {
+                const db = event.target.result;
+                const transaction = db.transaction(['scores'], 'readwrite');
+                const store = transaction.objectStore('scores');
+                store.put({ id: 'highScore', value: this.highScore });
+            }.bind(this);
         }
+    }
+
+    // 从IndexedDB加载最高分
+    async loadHighScoreFromIndexedDB() {
+        return new Promise((resolve) => {
+            if ('indexedDB' in window) {
+                const request = indexedDB.open('TetrisDB', 1);
+
+                request.onsuccess = function (event) {
+                    const db = event.target.result;
+                    const transaction = db.transaction(['scores'], 'readonly');
+                    const store = transaction.objectStore('scores');
+                    const getRequest = store.get('highScore');
+
+                    getRequest.onsuccess = function (event) {
+                        if (event.target.result) {
+                            resolve(event.target.result.value);
+                        } else {
+                            resolve(0);
+                        }
+                    };
+
+                    getRequest.onerror = function () {
+                        resolve(0);
+                    };
+                };
+
+                request.onerror = function () {
+                    resolve(0);
+                };
+            } else {
+                resolve(0);
+            }
+        });
     }
 
     setupEventListeners() {
@@ -155,6 +275,67 @@ class Game {
                 }
             }
         });
+    }
+
+    createTouchControls() {
+        // 创建触摸控制按钮
+        const touchControls = document.createElement('div');
+        touchControls.className = 'touch-controls';
+
+        const leftBtn = document.createElement('div');
+        leftBtn.className = 'touch-btn';
+        leftBtn.innerHTML = '←';
+        leftBtn.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            if (!this.gameOver && !this.paused) this.move(-1, 0);
+        });
+        leftBtn.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            if (!this.gameOver && !this.paused) this.move(-1, 0);
+        });
+
+        const rightBtn = document.createElement('div');
+        rightBtn.className = 'touch-btn';
+        rightBtn.innerHTML = '→';
+        rightBtn.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            if (!this.gameOver && !this.paused) this.move(1, 0);
+        });
+        rightBtn.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            if (!this.gameOver && !this.paused) this.move(1, 0);
+        });
+
+        const rotateBtn = document.createElement('div');
+        rotateBtn.className = 'touch-btn';
+        rotateBtn.innerHTML = '↻';
+        rotateBtn.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            if (!this.gameOver && !this.paused) this.rotatePiece();
+        });
+        rotateBtn.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            if (!this.gameOver && !this.paused) this.rotatePiece();
+        });
+
+        const downBtn = document.createElement('div');
+        downBtn.className = 'touch-btn';
+        downBtn.innerHTML = '↓';
+        downBtn.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            if (!this.gameOver && !this.paused) this.dropPiece();
+        });
+        downBtn.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            if (!this.gameOver && !this.paused) this.dropPiece();
+        });
+
+        touchControls.appendChild(leftBtn);
+        touchControls.appendChild(rotateBtn);
+        touchControls.appendChild(rightBtn);
+        touchControls.appendChild(downBtn);
+
+        document.body.appendChild(touchControls);
     }
 
     drawBoard() {
