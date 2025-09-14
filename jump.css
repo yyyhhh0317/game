@@ -30,6 +30,9 @@ body {
     /* 确保画布在容器中正确显示 */
     width: 100%;
     height: auto;
+    /* 添加硬件加速 */
+    transform: translateZ(0);
+    will-change: transform;
 }
 
 #gameOver {
