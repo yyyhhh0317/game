@@ -70,7 +70,10 @@ body {
 
 #scorePanel {
     display: flex;
-    justify-content: space-between;
+    justify-content: center;
+    /* 修改为居中对齐 */
+    gap: 30px;
+    /* 添加间距 */
     width: 100%;
     max-width: 800px;
     margin: 10px 0;
@@ -78,6 +81,8 @@ body {
     font-weight: bold;
     box-sizing: border-box;
     padding: 0 10px;
+    text-align: center;
+    /* 添加文本居中 */
 }
 
 /* 横屏支持 */
@@ -100,6 +105,9 @@ body {
         left: 0;
         width: 400px;
         margin-top: 20px;
+        justify-content: center;
+        /* 在横屏模式下也居中 */
+        gap: 20px;
     }
 }
 
