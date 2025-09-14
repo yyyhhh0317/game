@@ -9,17 +9,27 @@ body {
     background-color: #f0f0f0;
     font-family: Arial, sans-serif;
     touch-action: none;
+    /* 添加以下属性以支持全屏 */
+    overflow: hidden;
+    width: 100vw;
+    height: 100vh;
 }
 
 #gameContainer {
     position: relative;
     margin: 20px auto;
+    /* 添加全屏支持 */
+    width: 100%;
+    max-width: 800px;
 }
 
 #gameCanvas {
     border: 2px solid #000;
     background-color: white;
     touch-action: manipulation;
+    /* 确保画布在容器中正确显示 */
+    width: 100%;
+    height: auto;
 }
 
 #gameOver {
@@ -33,6 +43,7 @@ body {
     align-items: center;
     justify-content: center;
     visibility: hidden;
+    z-index: 10;
 }
 
 #gameOver.visible {
@@ -60,10 +71,13 @@ body {
 #scorePanel {
     display: flex;
     justify-content: space-between;
-    width: 800px;
+    width: 100%;
+    max-width: 800px;
     margin: 10px 0;
     font-size: 24px;
     font-weight: bold;
+    box-sizing: border-box;
+    padding: 0 10px;
 }
 
 /* 横屏支持 */
@@ -101,6 +115,10 @@ body {
         width: 95%;
         font-size: 20px;
     }
+
+    #gameContainer {
+        margin: 0;
+    }
 }
 
 #restartButton {
@@ -119,4 +137,15 @@ body {
 
 #restartButton:hover {
     background-color: pink;
+}
+
+/* 添加全屏样式 */
+.fullscreen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 9999;
+    background-color: #000;
 }
