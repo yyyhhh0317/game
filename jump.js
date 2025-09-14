@@ -34,6 +34,7 @@ let gameRunning = true;
 let lastTime = 0;
 let obstacleCounter = 0;
 let lastTimestamp = 0;
+let isFullscreen = false;
 
 // 读取最高分
 function loadHighScore() {
@@ -192,6 +193,7 @@ function initGame() {
     newRecordElement.classList.add('hidden');
     scoreElement.textContent = score;
     lastTimestamp = 0;
+    enterFullscreen();
 }
 
 // 生成障碍物
@@ -265,6 +267,34 @@ function drawGame() {
     obstacles.forEach(obstacle => obstacle.draw());
 }
 
+function enterFullscreen() {
+    const elem = document.documentElement;
+
+    if (elem.requestFullscreen) {
+        elem.requestFullscreen().catch(err => {
+            console.log(`无法进入全屏模式: ${err.message}`);
+        });
+    } else if (elem.webkitRequestFullscreen) { /* Safari */
+        elem.webkitRequestFullscreen();
+    } else if (elem.msRequestFullscreen) { /* IE11 */
+        elem.msRequestFullscreen();
+    }
+
+    isFullscreen = true;
+}
+
+function exitFullscreen() {
+    if (document.exitFullscreen) {
+        document.exitFullscreen();
+    } else if (document.webkitExitFullscreen) { /* Safari */
+        document.webkitExitFullscreen();
+    } else if (document.msExitFullscreen) { /* IE11 */
+        document.msExitFullscreen();
+    }
+
+    isFullscreen = false;
+}
+
 // 游戏结束处理
 function gameOver() {
     gameRunning = false;
@@ -303,7 +333,6 @@ document.addEventListener('keydown', (event) => {
     }
 });
 
-// 触摸事件处理（移动端支持）
 canvas.addEventListener('touchstart', (event) => {
     if (gameRunning) {
         player.jump();
@@ -311,6 +340,48 @@ canvas.addEventListener('touchstart', (event) => {
         initGame();
     }
     event.preventDefault();
+
+    // 确保进入全屏
+    if (!isFullscreen) {
+        enterFullscreen();
+    }
+});
+
+// 触摸事件处理（移动端支持）
+document.addEventListener('keydown', (event) => {
+    if (event.code === 'Space' || event.code === 'ArrowUp') {
+        if (gameRunning) {
+            player.jump();
+        }
+        event.preventDefault();
+    }
+
+    if (event.code === 'KeyR' && !gameRunning) {
+        initGame();
+        event.preventDefault();
+    }
+
+    // 添加 F 键切换全屏
+    if (event.code === 'KeyF') {
+        if (isFullscreen) {
+            exitFullscreen();
+        } else {
+            enterFullscreen();
+        }
+        event.preventDefault();
+    }
+});
+
+// 添加页面可见性变化监听，当页面重新可见时确保全屏
+document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && gameRunning && !isFullscreen) {
+        // 页面重新可见时尝试重新进入全屏
+        setTimeout(() => {
+            if (gameRunning && !isFullscreen) {
+                enterFullscreen();
+            }
+        }, 1000);
+    }
 });
 
 // 从IndexedDB加载最高分（如果可用）
