@@ -265,13 +265,6 @@ function drawGame() {
     obstacles.forEach(obstacle => obstacle.draw());
 }
 
-// 添加重新开始游戏函数
-function restartGame() {
-    initGame();
-    // 移除双击事件监听器
-    canvas.removeEventListener('dblclick', restartGame);
-}
-
 // 游戏结束处理
 function gameOver() {
     gameRunning = false;
@@ -285,8 +278,6 @@ function gameOver() {
     }
 
     gameOverElement.classList.add('visible');
-    // 添加双击重新开始功能
-    canvas.addEventListener('dblclick', restartGame);
 }
 
 // 游戏主循环
@@ -299,25 +290,17 @@ function gameLoop(timestamp) {
 
 // 键盘事件处理
 document.addEventListener('keydown', (event) => {
-    if ((event.code === 'Space' || event.code === 'ArrowUp') && gameRunning) {
-        player.jump();
+    if (event.code === 'Space' || event.code === 'ArrowUp') {
+        if (gameRunning) {
+            player.jump();
+        }
         event.preventDefault();
     }
 
     if (event.code === 'KeyR' && !gameRunning) {
-        restartGame();
+        initGame();
         event.preventDefault();
     }
-});
-
-// 触摸事件处理（移动端支持）
-canvas.addEventListener('touchstart', (event) => {
-    if (gameRunning) {
-        player.jump();
-    } else {
-        restartGame();
-    }
-    event.preventDefault();
 });
 
 // 触摸事件处理（移动端支持）
@@ -353,6 +336,12 @@ function loadHighScoreFromIndexedDB() {
         };
     }
 }
+
+document.getElementById('restartButton').addEventListener('click', () => {
+    if (!gameRunning) {
+        initGame();
+    }
+});
 
 // 初始化并开始游戏
 loadHighScore();
